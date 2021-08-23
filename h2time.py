@@ -150,9 +150,10 @@ class H2Protocol(asyncio.Protocol):
 
 
 class H2Request:
-    def __init__(self, method: str, url: str, headers: dict = None, data: str = ''):
+    def __init__(self, method: str, url: str, headers: dict = None, data: str = '', override_authority=None):
         self.method = method
         self.url = self.scheme = self.host = self.port = self.path = self.query = None
+        self.authority = override_authority
         self.set_url(url)
         self.padding_params = ""
         self.data = data
@@ -164,6 +165,8 @@ class H2Request:
         o = urlparse(url)
         self.scheme = o.scheme
         self.host = o.netloc
+        if self.authority == None:
+            self.authority = self.host
         self.port = o.port or 443 if self.scheme == 'https' else 80
         self.path = o.path
         self.query = o.query
@@ -183,10 +186,11 @@ class H2Request:
             path += '?' + self.query
         headers = [
             (':method', self.method),
-            (':authority', self.host),
+            (':authority', self.authority),
             (':scheme', self.scheme),
             (':path', path + (self.padding_params if include_padding_params else '')),
         ]
+        #print(headers)
         for k, v in self.headers.items():
             headers.append((k, v))
         return headers
@@ -265,6 +269,8 @@ class H2Time:
                 ssl.OP_NO_SSLv2 | ssl.OP_NO_SSLv3 | ssl.OP_NO_TLSv1 | ssl.OP_NO_TLSv1_1
         )
         ctx.options |= ssl.OP_NO_COMPRESSION
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
         ctx.set_ciphers("ECDHE+AESGCM:ECDHE+CHACHA20:DHE+AESGCM:DHE+CHACHA20")
         ctx.set_alpn_protocols(["h2", "http/1.1"])
         try:
